@@ -1,0 +1,84 @@
+--- ../../../../linux-5.15.78/sound/soc/codecs/da7219.c	2022-11-10 11:15:43.000000000 -0600
++++ ./da7219.c.codec	2022-11-12 20:31:42.169677520 -0600
+@@ -1792,6 +1792,17 @@
+ 	else
+ 		pdata->mic_amp_in_sel = DA7219_MIC_AMP_IN_SEL_DIFF;
+ 
++ 	if (device_property_read_u32(dev, "dlg,vdd", &of_val32) >= 0)
++             pdata->vdd = of_val32;
++
++
++     	if (device_property_read_u32(dev, "dlg,vddio", &of_val32) >= 0)
++             pdata->vddio = of_val32;
++
++
++     	if (device_property_read_u32(dev, "dlg,vddmic", &of_val32) >= 0)
++             pdata->vddmic = of_val32;
++
+ 	return pdata;
+ }
+ 
+@@ -1877,9 +1888,25 @@
+ 
+ 	/* Determine VDDIO voltage provided */
+ 	vddio = da7219->supplies[DA7219_SUPPLY_VDDIO].consumer;
++	   
++ 	ret = regulator_get_voltage(vdd);
++    	/* If regulator_get_voltage() fails, try to use vdd from pdata. */
++     	if (ret < 0 && da7219->pdata)
++            ret = da7219->pdata->vdd;
++
++
++  	ret = regulator_get_voltage(vddmic);
++    	/* If regulator_get_voltage() fails, try to use vddio from pdata. */
++	    if (ret < 0 && da7219->pdata)
++            ret = da7219->pdata->vddmic;
++
+ 	ret = regulator_get_voltage(vddio);
++	/* If regulator_get_voltage() fails, try to use vddio from pdata. */
++     	if (ret < 0 && da7219->pdata)
++            ret = da7219->pdata->vddio;	
++	
+ 	if (ret < 1200000)
+-		dev_warn(component->dev, "Invalid VDDIO voltage\n");
++		dev_warn(component->dev, "Invalid VDDIO voltage: %d mV\n",ret);
+ 	else if (ret < 2800000)
+ 		*io_voltage_lvl = DA7219_IO_VOLTAGE_LEVEL_1_2V_2_8V;
+ 
+@@ -2196,7 +2223,6 @@
+ 			dai_clk_lookup = clkdev_hw_create(dai_clk_hw, init.name,
+ 							  "%s", dev_name(dev));
+ 			if (!dai_clk_lookup) {
+-				clk_hw_unregister(dai_clk_hw);
+ 				ret = -ENOMEM;
+ 				goto err;
+ 			} else {
+@@ -2218,12 +2244,12 @@
+ 	return 0;
+ 
+ err:
+-	while (--i >= 0) {
++	do {
+ 		if (da7219->dai_clks_lookup[i])
+ 			clkdev_drop(da7219->dai_clks_lookup[i]);
+ 
+ 		clk_hw_unregister(&da7219->dai_clks_hw[i]);
+-	}
++	} while (i-- > 0);
+ 
+ 	if (np)
+ 		kfree(da7219->clk_hw_data);
+@@ -2455,6 +2481,13 @@
+ 	mutex_init(&da7219->ctrl_lock);
+ 	mutex_init(&da7219->pll_lock);
+ 
++ 
++     /* Handle DT/ACPI/Platform data */
++     da7219->pdata = dev_get_platdata(component->dev);
++     if (!da7219->pdata)
++             da7219->pdata = da7219_fw_to_pdata(component);
++
++
+ 	/* Regulator configuration */
+ 	ret = da7219_handle_supplies(component, &io_voltage_lvl);
+ 	if (ret)
