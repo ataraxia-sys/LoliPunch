@@ -1,0 +1,10 @@
+--- ../../../../linux-5.15.78/sound/soc/codecs/da7219.h	2022-11-10 11:15:43.000000000 -0600
++++ ./da7219.h.codec	2022-11-12 20:31:48.066419770 -0600
+@@ -21,6 +21,7 @@
+  * Registers
+  */
+ 
++
+ #define DA7219_MIC_1_GAIN_STATUS	0x6
+ #define DA7219_MIXIN_L_GAIN_STATUS	0x8
+ #define DA7219_ADC_L_GAIN_STATUS	0xA
